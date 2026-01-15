@@ -1,0 +1,181 @@
+import { useState, useEffect, useRef } from 'react';
+import { Target, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
+
+const HotspotQuestion = ({ question, answer, onAnswer }) => {
+  const [clicks, setClicks] = useState([]);
+  const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
+  const imageRef = useRef(null);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    if (answer?.clicks) {
+      setClicks(answer.clicks);
+    }
+  }, [answer]);
+
+  useEffect(() => {
+    const updateImageSize = () => {
+      if (imageRef.current) {
+        setImageSize({
+          width: imageRef.current.offsetWidth,
+          height: imageRef.current.offsetHeight,
+        });
+      }
+    };
+
+    updateImageSize();
+    window.addEventListener('resize', updateImageSize);
+    return () => window.removeEventListener('resize', updateImageSize);
+  }, [question.image_id]);
+
+  const handleImageClick = (e) => {
+    if (!imageRef.current) return;
+
+    const rect = imageRef.current.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+
+    const newClick = {
+      id: Date.now(),
+      x: Math.round(x * 100) / 100,
+      y: Math.round(y * 100) / 100,
+      timestamp: Date.now(),
+    };
+
+    const newClicks = [...clicks, newClick];
+    setClicks(newClicks);
+    onAnswer({ clicks: newClicks });
+  };
+
+  const handleRemoveClick = (clickId) => {
+    const newClicks = clicks.filter((c) => c.id !== clickId);
+    setClicks(newClicks);
+    onAnswer({ clicks: newClicks });
+  };
+
+  const handleReset = () => {
+    setClicks([]);
+    onAnswer({ clicks: [] });
+  };
+
+  if (!question.image_id) {
+    return (
+      <div className="p-8 text-center bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+        <Target className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+        <p className="text-gray-600">Изображение не загружено</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Instructions */}
+      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <p className="text-sm text-blue-900">
+          🎯 Кликните на нужные области изображения. Каждый клик создаст маркер.
+        </p>
+      </div>
+
+      {/* Image with Hotspots */}
+      <div
+        ref={containerRef}
+        className="relative border-2 border-gray-300 rounded-lg overflow-hidden bg-gray-50"
+        style={{ cursor: 'crosshair' }}
+      >
+        <img
+          ref={imageRef}
+          src={`/uploads/${question.image_id}`}
+          alt="Hotspot"
+          className="w-full h-auto"
+          onClick={handleImageClick}
+          onLoad={() => {
+            if (imageRef.current) {
+              setImageSize({
+                width: imageRef.current.offsetWidth,
+                height: imageRef.current.offsetHeight,
+              });
+            }
+          }}
+        />
+
+        {/* Render Clicks */}
+        {clicks.map((click, index) => (
+          <div
+            key={click.id}
+            className="absolute transform -translate-x-1/2 -translate-y-1/2 group"
+            style={{
+              left: `${click.x}%`,
+              top: `${click.y}%`,
+            }}
+          >
+            {/* Marker */}
+            <div className="relative">
+              <div className="w-8 h-8 bg-red-500 border-4 border-white rounded-full shadow-lg flex items-center justify-center text-white text-xs font-bold">
+                {index + 1}
+              </div>
+              
+              {/* Remove Button */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleRemoveClick(click.id);
+                }}
+                className="absolute -top-2 -right-2 w-5 h-5 bg-white border-2 border-red-500 rounded-full text-red-500 opacity-0 group-hover:opacity-100 transition flex items-center justify-center"
+                title="Удалить маркер"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Stats and Controls */}
+      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+        <div className="flex items-center gap-2">
+          <Target className="w-5 h-5 text-blue-600" />
+          <span className="text-sm text-gray-700">
+            Отмечено точек: <span className="font-semibold">{clicks.length}</span>
+          </span>
+        </div>
+
+        <button
+          onClick={handleReset}
+          className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition"
+        >
+          <RefreshCw className="w-4 h-4" />
+          Сбросить все
+        </button>
+      </div>
+
+      {/* Click List */}
+      {clicks.length > 0 && (
+        <div className="p-4 bg-white border border-gray-200 rounded-lg">
+          <h4 className="text-sm font-medium text-gray-700 mb-2">
+            Отмеченные точки:
+          </h4>
+          <div className="space-y-1">
+            {clicks.map((click, index) => (
+              <div
+                key={click.id}
+                className="flex items-center justify-between text-sm"
+              >
+                <span className="text-gray-600">
+                  Точка {index + 1}: ({click.x.toFixed(1)}%, {click.y.toFixed(1)}%)
+                </span>
+                <button
+                  onClick={() => handleRemoveClick(click.id)}
+                  className="text-red-600 hover:text-red-700 text-xs"
+                >
+                  Удалить
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default HotspotQuestion;

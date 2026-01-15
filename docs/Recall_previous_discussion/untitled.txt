@@ -1,0 +1,156 @@
+import { CheckCircle, Clock, FileText, AlertCircle } from 'lucide-react';
+
+const StudentTestCompletionPage = ({ session, test, onBackToDashboard }) => {
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins} минут ${secs} секунд`;
+  };
+
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleString('ru-RU', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50 py-12 px-4">
+      <div className="max-w-3xl mx-auto">
+        {/* Success Card */}
+        <div className="bg-white rounded-lg shadow-lg p-8 mb-6">
+          {/* Success Icon */}
+          <div className="flex justify-center mb-6">
+            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center">
+              <CheckCircle className="w-12 h-12 text-green-600" />
+            </div>
+          </div>
+
+          {/* Success Message */}
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+              Тест успешно завершён!
+            </h1>
+            <p className="text-lg text-gray-600">
+              Ваши ответы отправлены на проверку преподавателю
+            </p>
+          </div>
+
+          {/* Test Info */}
+          <div className="border-t border-b border-gray-200 py-6 mb-6">
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <FileText className="w-5 h-5 text-gray-400 mt-0.5" />
+                <div>
+                  <p className="text-sm text-gray-600">Название теста</p>
+                  <p className="font-semibold text-gray-900">{test?.title || 'Математика 101'}</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <Clock className="w-5 h-5 text-gray-400 mt-0.5" />
+                <div>
+                  <p className="text-sm text-gray-600">Время выполнения</p>
+                  <p className="font-semibold text-gray-900">
+                    {formatTime(session?.time_taken || 1800)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <CheckCircle className="w-5 h-5 text-gray-400 mt-0.5" />
+                <div>
+                  <p className="text-sm text-gray-600">Дата завершения</p>
+                  <p className="font-semibold text-gray-900">
+                    {formatDate(session?.completed_at || new Date().toISOString())}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <FileText className="w-5 h-5 text-gray-400 mt-0.5" />
+                <div>
+                  <p className="text-sm text-gray-600">Отвечено вопросов</p>
+                  <p className="font-semibold text-gray-900">
+                    {session?.answered_count || 20} из {session?.total_questions || 20}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Important Notice */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <div className="flex gap-3">
+              <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium text-blue-900 mb-1">
+                  Информация о результатах
+                </p>
+                <p className="text-sm text-blue-800">
+                  Результаты тестирования будут доступны только вашему преподавателю. 
+                  После проверки преподаватель сообщит вам вашу оценку.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Action Button */}
+          <div className="flex justify-center">
+            <button
+              onClick={onBackToDashboard || (() => window.location.href = '/student/dashboard')}
+              className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
+            >
+              Вернуться к списку тестов
+            </button>
+          </div>
+        </div>
+
+        {/* Additional Info Card */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="font-semibold text-gray-900 mb-3">Что дальше?</h3>
+          <ul className="space-y-3 text-sm text-gray-700">
+            <li className="flex items-start gap-2">
+              <span className="text-blue-600 font-bold mt-0.5">1.</span>
+              <span>
+                Преподаватель получил уведомление о завершении вашего теста
+              </span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-blue-600 font-bold mt-0.5">2.</span>
+              <span>
+                Он проверит ваши ответы и выставит оценку
+              </span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-blue-600 font-bold mt-0.5">3.</span>
+              <span>
+                Результаты будут озвучены на следующем занятии или отправлены вам отдельно
+              </span>
+            </li>
+          </ul>
+        </div>
+
+        {/* Contact Info */}
+        <div className="mt-6 text-center text-sm text-gray-600">
+          <p>
+            Есть вопросы по тесту? Свяжитесь с вашим преподавателем
+          </p>
+          {test?.teacher_email && (
+            <a
+              href={`mailto:${test.teacher_email}`}
+              className="text-blue-600 hover:text-blue-700 font-medium"
+            >
+              {test.teacher_email}
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default StudentTestCompletionPage;

@@ -1,0 +1,121 @@
+import { useState, useEffect } from 'react';
+import { FileText, CheckCircle } from 'lucide-react';
+
+const FillBlanksQuestion = ({ question, answer, onAnswer }) => {
+  const [blanks, setBlanks] = useState({});
+
+  useEffect(() => {
+    if (answer?.blanks) {
+      setBlanks(answer.blanks);
+    } else {
+      // Initialize empty blanks
+      const blankCount = (question.question_text.match(/___/g) || []).length;
+      const initialBlanks = {};
+      for (let i = 0; i < blankCount; i++) {
+        initialBlanks[i] = '';
+      }
+      setBlanks(initialBlanks);
+    }
+  }, [answer, question]);
+
+  const handleBlankChange = (index, value) => {
+    const newBlanks = { ...blanks, [index]: value };
+    setBlanks(newBlanks);
+    onAnswer({ blanks: newBlanks });
+  };
+
+  // Split text into parts and blanks
+  const parts = question.question_text.split(/___/);
+  const blankCount = parts.length - 1;
+
+  return (
+    <div className="space-y-4">
+      {/* Instructions */}
+      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <p className="text-sm text-blue-900">
+          ✏️ Заполните пропуски в тексте. Всего пропусков: {blankCount}
+        </p>
+      </div>
+
+      {/* Text with Blanks */}
+      <div className="p-6 bg-white border border-gray-300 rounded-lg">
+        <div className="text-lg leading-relaxed text-gray-900">
+          {parts.map((part, index) => (
+            <span key={index}>
+              {part}
+              {index < parts.length - 1 && (
+                <input
+                  type="text"
+                  value={blanks[index] || ''}
+                  onChange={(e) => handleBlankChange(index, e.target.value)}
+                  placeholder={`___${index + 1}___`}
+                  className="inline-block mx-1 px-3 py-1 border-b-2 border-blue-500 focus:border-blue-600 focus:outline-none bg-blue-50 min-w-[120px] text-center font-medium"
+                />
+              )}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Progress */}
+      <div className="p-4 bg-gray-50 rounded-lg">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2 text-sm text-gray-700">
+            <FileText className="w-4 h-4" />
+            <span>
+              Заполнено: {Object.values(blanks).filter((v) => v.trim()).length} из {blankCount}
+            </span>
+          </div>
+          {Object.values(blanks).filter((v) => v.trim()).length === blankCount && (
+            <div className="flex items-center gap-1 text-green-600 text-sm">
+              <CheckCircle className="w-4 h-4" />
+              <span>Все заполнено!</span>
+            </div>
+          )}
+        </div>
+
+        {/* Progress Bar */}
+        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-blue-500 transition-all duration-300"
+            style={{
+              width: `${(Object.values(blanks).filter((v) => v.trim()).length / blankCount) * 100}%`,
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Blank List */}
+      {blankCount > 0 && (
+        <div className="p-4 bg-white border border-gray-200 rounded-lg">
+          <h4 className="text-sm font-medium text-gray-700 mb-3">
+            Ваши ответы:
+          </h4>
+          <div className="space-y-2">
+            {Array.from({ length: blankCount }).map((_, index) => (
+              <div key={index} className="flex items-center gap-3">
+                <span className="text-sm text-gray-600 min-w-[60px]">
+                  Пропуск {index + 1}:
+                </span>
+                <input
+                  type="text"
+                  value={blanks[index] || ''}
+                  onChange={(e) => handleBlankChange(index, e.target.value)}
+                  placeholder="Введите ответ..."
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Hint */}
+      <div className="text-sm text-gray-600 text-center">
+        💡 Совет: внимательно читайте контекст для каждого пропуска
+      </div>
+    </div>
+  );
+};
+
+export default FillBlanksQuestion;

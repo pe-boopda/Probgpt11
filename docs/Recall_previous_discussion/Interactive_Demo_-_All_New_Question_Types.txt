@@ -1,0 +1,577 @@
+import { useState } from 'react';
+import { 
+  ArrowRight, 
+  RefreshCw, 
+  GripVertical, 
+  ArrowUp, 
+  ArrowDown,
+  Target,
+  FileText,
+  CheckCircle,
+  XCircle,
+  Plus,
+  Minus
+} from 'lucide-react';
+
+// ==================== MATCHING QUESTION ====================
+const MatchingQuestionDemo = () => {
+  const [matches, setMatches] = useState({});
+  const [selectedLeft, setSelectedLeft] = useState(null);
+
+  const leftItems = [
+    { id: 'left_1', text: 'Франция' },
+    { id: 'left_2', text: 'Германия' },
+    { id: 'left_3', text: 'Италия' },
+    { id: 'left_4', text: 'Испания' },
+  ];
+
+  const rightItems = [
+    { id: 'right_1', text: 'Париж' },
+    { id: 'right_2', text: 'Берлин' },
+    { id: 'right_3', text: 'Рим' },
+    { id: 'right_4', text: 'Мадрид' },
+  ];
+
+  const correctMatches = {
+    'left_1': 'right_1',
+    'left_2': 'right_2',
+    'left_3': 'right_3',
+    'left_4': 'right_4',
+  };
+
+  const handleLeftClick = (leftId) => {
+    setSelectedLeft(selectedLeft === leftId ? null : leftId);
+  };
+
+  const handleRightClick = (rightId) => {
+    if (!selectedLeft) return;
+
+    const newMatches = { ...matches };
+    Object.keys(newMatches).forEach((key) => {
+      if (newMatches[key] === rightId) delete newMatches[key];
+    });
+    newMatches[selectedLeft] = rightId;
+    
+    setMatches(newMatches);
+    setSelectedLeft(null);
+  };
+
+  const handleRemoveMatch = (leftId) => {
+    const newMatches = { ...matches };
+    delete newMatches[leftId];
+    setMatches(newMatches);
+  };
+
+  const checkAnswers = () => {
+    let correct = 0;
+    Object.keys(correctMatches).forEach((left) => {
+      if (matches[left] === correctMatches[left]) correct++;
+    });
+    return { correct, total: Object.keys(correctMatches).length };
+  };
+
+  const getRightItemById = (id) => rightItems.find((item) => item.id === id);
+  const isRightUsed = (id) => Object.values(matches).includes(id);
+
+  const result = checkAnswers();
+
+  return (
+    <div className="space-y-4">
+      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <p className="text-sm text-blue-900">
+          💡 Кликните на элемент слева, затем на соответствующий элемент справа
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-6">
+        {/* Left Column */}
+        <div className="space-y-3">
+          <h3 className="text-sm font-medium text-gray-700">Страны:</h3>
+          {leftItems.map((item) => {
+            const isSelected = selectedLeft === item.id;
+            const hasMatch = matches[item.id];
+            const matchedRight = hasMatch ? getRightItemById(matches[item.id]) : null;
+
+            return (
+              <div key={item.id}>
+                <button
+                  onClick={() => handleLeftClick(item.id)}
+                  className={`w-full p-4 rounded-lg border-2 text-left transition ${
+                    isSelected
+                      ? 'border-blue-500 bg-blue-50 shadow-md'
+                      : hasMatch
+                      ? 'border-green-300 bg-green-50'
+                      : 'border-gray-300 bg-white hover:border-gray-400'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">{item.text}</span>
+                    {hasMatch && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveMatch(item.id);
+                        }}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                </button>
+                
+                {matchedRight && (
+                  <div className="mt-2 flex items-center gap-2 text-sm text-green-700">
+                    <ArrowRight className="w-4 h-4" />
+                    <span>{matchedRight.text}</span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Right Column */}
+        <div className="space-y-3">
+          <h3 className="text-sm font-medium text-gray-700">Столицы:</h3>
+          {rightItems.map((item) => {
+            const isUsed = isRightUsed(item.id);
+            const canSelect = selectedLeft !== null;
+
+            return (
+              <button
+                key={item.id}
+                onClick={() => handleRightClick(item.id)}
+                disabled={!canSelect}
+                className={`w-full p-4 rounded-lg border-2 text-left transition ${
+                  isUsed
+                    ? 'border-green-300 bg-green-50 opacity-50'
+                    : canSelect
+                    ? 'border-gray-300 bg-white hover:border-blue-400 hover:bg-blue-50'
+                    : 'border-gray-200 bg-gray-50 cursor-not-allowed'
+                }`}
+              >
+                <span className={isUsed ? 'line-through' : ''}>{item.text}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+        <div className="text-sm">
+          Сопоставлено: {Object.keys(matches).length} из {leftItems.length}
+          {Object.keys(matches).length === leftItems.length && (
+            <span className="ml-4 text-green-600 font-semibold">
+              ✓ Правильных: {result.correct} из {result.total}
+            </span>
+          )}
+        </div>
+        <button
+          onClick={() => {
+            setMatches({});
+            setSelectedLeft(null);
+          }}
+          className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
+        >
+          <RefreshCw className="w-4 h-4" />
+          Сбросить
+        </button>
+      </div>
+
+      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+        <div
+          className="h-full bg-blue-500 transition-all duration-300"
+          style={{ width: `${(Object.keys(matches).length / leftItems.length) * 100}%` }}
+        />
+      </div>
+    </div>
+  );
+};
+
+// ==================== ORDERING QUESTION ====================
+const OrderingQuestionDemo = () => {
+  const [items, setItems] = useState([
+    { id: 1, text: 'Наблюдение и формулирование вопроса', order: 0 },
+    { id: 2, text: 'Выдвижение гипотезы', order: 1 },
+    { id: 3, text: 'Проведение эксперимента', order: 2 },
+    { id: 4, text: 'Анализ данных', order: 3 },
+    { id: 5, text: 'Формулирование выводов', order: 4 },
+  ]);
+  const [shuffled, setShuffled] = useState(false);
+
+  const handleMoveUp = (index) => {
+    if (index === 0) return;
+    const newItems = [...items];
+    [newItems[index - 1], newItems[index]] = [newItems[index], newItems[index - 1]];
+    setItems(newItems);
+  };
+
+  const handleMoveDown = (index) => {
+    if (index === items.length - 1) return;
+    const newItems = [...items];
+    [newItems[index], newItems[index + 1]] = [newItems[index + 1], newItems[index]];
+    setItems(newItems);
+  };
+
+  const handleShuffle = () => {
+    const shuffledItems = [...items].sort(() => Math.random() - 0.5);
+    setItems(shuffledItems);
+    setShuffled(true);
+  };
+
+  const isCorrect = items.every((item, index) => item.order === index);
+
+  return (
+    <div className="space-y-4">
+      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <p className="text-sm text-blue-900">
+          💡 Расположите шаги научного метода в правильном порядке
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        {items.map((item, index) => (
+          <div
+            key={item.id}
+            className={`flex items-center gap-3 p-4 border-2 rounded-lg transition ${
+              shuffled && item.order === index
+                ? 'border-green-300 bg-green-50'
+                : 'border-gray-300 bg-white'
+            }`}
+          >
+            <GripVertical className="w-5 h-5 text-gray-400" />
+            
+            <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-semibold flex-shrink-0">
+              {index + 1}
+            </div>
+
+            <div className="flex-1 font-medium text-gray-900">{item.text}</div>
+
+            <div className="flex gap-1">
+              <button
+                onClick={() => handleMoveUp(index)}
+                disabled={index === 0}
+                className="p-2 text-gray-600 hover:bg-gray-100 rounded transition disabled:opacity-30"
+              >
+                <ArrowUp className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => handleMoveDown(index)}
+                disabled={index === items.length - 1}
+                className="p-2 text-gray-600 hover:bg-gray-100 rounded transition disabled:opacity-30"
+              >
+                <ArrowDown className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+        <div className="text-sm">
+          {shuffled && (
+            <span className={isCorrect ? 'text-green-600 font-semibold' : 'text-gray-600'}>
+              {isCorrect ? '✓ Правильный порядок!' : '✗ Неправильный порядок'}
+            </span>
+          )}
+        </div>
+        <button
+          onClick={handleShuffle}
+          className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 px-4 py-2 rounded-lg"
+        >
+          <RefreshCw className="w-4 h-4" />
+          Перемешать
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ==================== HOTSPOT QUESTION ====================
+const HotspotQuestionDemo = () => {
+  const [clicks, setClicks] = useState([]);
+
+  const correctAreas = [
+    { x: 30, y: 40, radius: 8, label: 'Сердце' },
+    { x: 70, y: 35, radius: 8, label: 'Лёгкие' },
+  ];
+
+  const handleClick = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+
+    const newClick = {
+      id: Date.now(),
+      x: Math.round(x * 100) / 100,
+      y: Math.round(y * 100) / 100,
+    };
+
+    setClicks([...clicks, newClick]);
+  };
+
+  const removeClick = (id) => {
+    setClicks(clicks.filter((c) => c.id !== id));
+  };
+
+  const checkClick = (click) => {
+    return correctAreas.some((area) => {
+      const distance = Math.sqrt(
+        Math.pow(click.x - area.x, 2) + Math.pow(click.y - area.y, 2)
+      );
+      return distance <= area.radius;
+    });
+  };
+
+  const correctClicks = clicks.filter(checkClick).length;
+
+  return (
+    <div className="space-y-4">
+      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <p className="text-sm text-blue-900">
+          🎯 Кликните на тело человека, чтобы отметить: сердце и лёгкие
+        </p>
+      </div>
+
+      <div
+        className="relative border-2 border-gray-300 rounded-lg overflow-hidden bg-gradient-to-b from-blue-100 to-blue-50 cursor-crosshair"
+        style={{ height: '400px' }}
+        onClick={handleClick}
+      >
+        {/* Simplified human body */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="relative">
+            {/* Head */}
+            <div className="w-16 h-16 bg-orange-200 rounded-full mx-auto mb-2 border-2 border-orange-300" />
+            {/* Body */}
+            <div className="w-32 h-40 bg-orange-200 rounded-lg border-2 border-orange-300 relative">
+              {/* Heart area hint */}
+              <div className="absolute left-6 top-12 w-8 h-8 border-2 border-dashed border-red-300 rounded-full opacity-30" />
+              {/* Lungs area hint */}
+              <div className="absolute right-6 top-8 w-10 h-10 border-2 border-dashed border-blue-300 rounded-full opacity-30" />
+            </div>
+            {/* Legs */}
+            <div className="flex gap-2 justify-center mt-2">
+              <div className="w-12 h-24 bg-orange-200 rounded-lg border-2 border-orange-300" />
+              <div className="w-12 h-24 bg-orange-200 rounded-lg border-2 border-orange-300" />
+            </div>
+          </div>
+        </div>
+
+        {/* Render clicks */}
+        {clicks.map((click, index) => {
+          const isCorrect = checkClick(click);
+          return (
+            <div
+              key={click.id}
+              className="absolute transform -translate-x-1/2 -translate-y-1/2 group"
+              style={{ left: `${click.x}%`, top: `${click.y}%` }}
+            >
+              <div className="relative">
+                <div
+                  className={`w-8 h-8 ${
+                    isCorrect ? 'bg-green-500' : 'bg-red-500'
+                  } border-4 border-white rounded-full shadow-lg flex items-center justify-center text-white text-xs font-bold`}
+                >
+                  {index + 1}
+                </div>
+                
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeClick(click.id);
+                  }}
+                  className="absolute -top-2 -right-2 w-5 h-5 bg-white border-2 border-red-500 rounded-full text-red-500 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-xs"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+        <div className="flex items-center gap-2">
+          <Target className="w-5 h-5 text-blue-600" />
+          <span className="text-sm text-gray-700">
+            Отмечено: {clicks.length} точек
+            {clicks.length > 0 && (
+              <span className="ml-4 text-green-600 font-semibold">
+                ✓ Правильных: {correctClicks}
+              </span>
+            )}
+          </span>
+        </div>
+        <button
+          onClick={() => setClicks([])}
+          className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
+        >
+          <RefreshCw className="w-4 h-4" />
+          Сбросить
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ==================== FILL BLANKS QUESTION ====================
+const FillBlanksQuestionDemo = () => {
+  const questionText = "Вторая мировая война началась в ___ году, когда ___ напала на Польшу. Война закончилась в ___ году.";
+  const correctAnswers = {
+    0: ['1939'],
+    1: ['германия', 'germany'],
+    2: ['1945'],
+  };
+
+  const parts = questionText.split(/___/);
+  const [blanks, setBlanks] = useState({ 0: '', 1: '', 2: '' });
+
+  const handleChange = (index, value) => {
+    setBlanks({ ...blanks, [index]: value });
+  };
+
+  const checkBlank = (index) => {
+    const userAnswer = blanks[index].toLowerCase().trim();
+    return correctAnswers[index].some((ans) => ans.toLowerCase() === userAnswer);
+  };
+
+  const filledCount = Object.values(blanks).filter((v) => v.trim()).length;
+  const correctCount = Object.keys(blanks).filter((idx) => 
+    blanks[idx].trim() && checkBlank(idx)
+  ).length;
+
+  return (
+    <div className="space-y-4">
+      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <p className="text-sm text-blue-900">
+          ✏️ Заполните пропуски в тексте
+        </p>
+      </div>
+
+      <div className="p-6 bg-white border border-gray-300 rounded-lg">
+        <div className="text-lg leading-relaxed text-gray-900">
+          {parts.map((part, index) => (
+            <span key={index}>
+              {part}
+              {index < parts.length - 1 && (
+                <input
+                  type="text"
+                  value={blanks[index]}
+                  onChange={(e) => handleChange(index, e.target.value)}
+                  placeholder="___"
+                  className={`inline-block mx-1 px-3 py-1 border-b-2 focus:outline-none min-w-[120px] text-center font-medium ${
+                    blanks[index].trim() && checkBlank(index)
+                      ? 'border-green-500 bg-green-50'
+                      : blanks[index].trim()
+                      ? 'border-red-500 bg-red-50'
+                      : 'border-blue-500 bg-blue-50'
+                  }`}
+                />
+              )}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div className="p-4 bg-gray-50 rounded-lg">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2 text-sm text-gray-700">
+            <FileText className="w-4 h-4" />
+            <span>
+              Заполнено: {filledCount} из {parts.length - 1}
+              {filledCount === parts.length - 1 && (
+                <span className="ml-4 text-green-600 font-semibold">
+                  ✓ Правильных: {correctCount}
+                </span>
+              )}
+            </span>
+          </div>
+          {filledCount === parts.length - 1 && correctCount === parts.length - 1 && (
+            <CheckCircle className="w-5 h-5 text-green-600" />
+          )}
+        </div>
+
+        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-blue-500 transition-all duration-300"
+            style={{ width: `${(filledCount / (parts.length - 1)) * 100}%` }}
+          />
+        </div>
+      </div>
+
+      <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-900">
+        💡 Подсказка: 1939, Германия, 1945
+      </div>
+    </div>
+  );
+};
+
+// ==================== MAIN APP ====================
+const App = () => {
+  const [activeTab, setActiveTab] = useState('matching');
+
+  const tabs = [
+    { id: 'matching', label: '🔗 Matching', component: MatchingQuestionDemo },
+    { id: 'ordering', label: '📋 Ordering', component: OrderingQuestionDemo },
+    { id: 'hotspot', label: '🎯 Hotspot', component: HotspotQuestionDemo },
+    { id: 'fill_blanks', label: '✏️ Fill Blanks', component: FillBlanksQuestionDemo },
+  ];
+
+  const ActiveComponent = tabs.find((t) => t.id === activeTab)?.component;
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-8">
+      <div className="max-w-5xl mx-auto">
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">
+            🎮 Интерактивная демонстрация
+          </h1>
+          <p className="text-gray-600">
+            Новые типы вопросов для Testing System
+          </p>
+        </div>
+
+        {/* Tabs */}
+        <div className="bg-white rounded-lg shadow-sm p-2 mb-6">
+          <div className="flex gap-2">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex-1 px-4 py-3 rounded-lg font-medium transition ${
+                  activeTab === tab.id
+                    ? 'bg-blue-600 text-white shadow'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="bg-white rounded-lg shadow-lg p-8">
+          {ActiveComponent && <ActiveComponent />}
+        </div>
+
+        {/* Info */}
+        <div className="mt-6 p-6 bg-blue-50 border border-blue-200 rounded-lg">
+          <h3 className="font-semibold text-blue-900 mb-2">
+            ℹ️ Информация о демо
+          </h3>
+          <ul className="text-sm text-blue-800 space-y-1">
+            <li>• <strong>Matching:</strong> Сопоставьте страны со столицами</li>
+            <li>• <strong>Ordering:</strong> Расположите шаги в правильном порядке</li>
+            <li>• <strong>Hotspot:</strong> Кликните по правильным областям (сердце и лёгкие)</li>
+            <li>• <strong>Fill Blanks:</strong> Заполните исторические даты</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default App;

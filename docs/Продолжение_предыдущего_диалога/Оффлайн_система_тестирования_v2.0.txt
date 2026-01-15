@@ -1,0 +1,741 @@
+import React, { useState, useEffect } from 'react';
+import { AlertCircle, Plus, Trash2, Edit, Play, BarChart, Users, BookOpen, Clock, CheckCircle, XCircle, Save, Eye, LogOut, ArrowLeft, ArrowRight, Send } from 'lucide-react';
+
+const App = () => {
+  // State management
+  const [currentUser, setCurrentUser] = useState(null);
+  const [view, setView] = useState('login');
+  const [tests, setTests] = useState([]);
+  const [sessions, setSessions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Editor state
+  const [editingTest, setEditingTest] = useState(null);
+  const [testForm, setTestForm] = useState({
+    title: '',
+    description: '',
+    timeLimit: 30,
+    passingScore: 70,
+    questions: []
+  });
+
+  // Test taking state
+  const [activeSession, setActiveSession] = useState(null);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [answers, setAnswers] = useState({});
+  const [timeRemaining, setTimeRemaining] = useState(null);
+
+  // Load data on mount
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  // Timer for active test
+  useEffect(() => {
+    if (activeSession && timeRemaining > 0) {
+      const timer = setInterval(() => {
+        setTimeRemaining(prev => {
+          if (prev <= 1) {
+            submitTest();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+  }, [activeSession, timeRemaining]);
+
+  // Storage functions with error handling
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      
+      // Load tests
+      try {
+        const testsResult = await window.storage.get('tests');
+        if (testsResult && testsResult.value) {
+          setTests(JSON.parse(testsResult.value));
+        }
+      } catch (err) {
+        console.log('No tests found, starting fresh');
+        setTests([]);
+      }
+
+      // Load sessions
+      try {
+        const sessionsResult = await window.storage.get('sessions');
+        if (sessionsResult && sessionsResult.value) {
+          setSessions(JSON.parse(sessionsResult.value));
+        }
+      } catch (err) {
+        console.log('No sessions found, starting fresh');
+        setSessions([]);
+      }
+
+      setError(null);
+    } catch (err) {
+      console.error('Error loading data:', err);
+      setError('Ошибка загрузки данных. Начинаем с чистого листа.');
+      setTests([]);
+      setSessions([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveTests = async (newTests) => {
+    try {
+      await window.storage.set('tests', JSON.stringify(newTests));
+      setTests(newTests);
+    } catch (err) {
+      console.error('Error saving tests:', err);
+      setError('Ошибка сохранения тестов');
+    }
+  };
+
+  const saveSessions = async (newSessions) => {
+    try {
+      await window.storage.set('sessions', JSON.stringify(newSessions));
+      setSessions(newSessions);
+    } catch (err) {
+      console.error('Error saving sessions:', err);
+      setError('Ошибка сохранения результатов');
+    }
+  };
+
+  // Auth functions
+  const handleLogin = (role) => {
+    setCurrentUser({ role, name: role === 'admin' ? 'Администратор' : 'Студент', id: Date.now() });
+    setView(role === 'admin' ? 'admin-dashboard' : 'student-dashboard');
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    setView('login');
+    setActiveSession(null);
+    setEditingTest(null);
+  };
+
+  // Test management
+  const createTest = () => {
+    setEditingTest(null);
+    setTestForm({
+      title: '',
+      description: '',
+      timeLimit: 30,
+      passingScore: 70,
+      questions: []
+    });
+    setView('test-editor');
+  };
+
+  const editTest = (test) => {
+    setEditingTest(test);
+    setTestForm(test);
+    setView('test-editor');
+  };
+
+  const saveTest = async () => {
+    if (!testForm.title.trim()) {
+      setError('Введите название теста');
+      return;
+    }
+    if (testForm.questions.length === 0) {
+      setError('Добавьте хотя бы один вопрос');
+      return;
+    }
+
+    const newTest = {
+      ...testForm,
+      id: editingTest?.id || Date.now(),
+      createdAt: editingTest?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    const updatedTests = editingTest
+      ? tests.map(t => t.id === editingTest.id ? newTest : t)
+      : [...tests, newTest];
+
+    await saveTests(updatedTests);
+    setView('admin-dashboard');
+    setEditingTest(null);
+  };
+
+  const deleteTest = async (testId) => {
+    if (confirm('Вы уверены, что хотите удалить этот тест?')) {
+      await saveTests(tests.filter(t => t.id !== testId));
+    }
+  };
+
+  // Question management
+  const addQuestion = () => {
+    const newQuestion = {
+      id: Date.now(),
+      type: 'multiple-choice',
+      text: '',
+      options: ['', '', '', ''],
+      correctAnswer: 0,
+      points: 1
+    };
+    setTestForm({
+      ...testForm,
+      questions: [...testForm.questions, newQuestion]
+    });
+  };
+
+  const updateQuestion = (index, field, value) => {
+    const updatedQuestions = [...testForm.questions];
+    updatedQuestions[index] = {
+      ...updatedQuestions[index],
+      [field]: value
+    };
+    setTestForm({ ...testForm, questions: updatedQuestions });
+  };
+
+  const updateQuestionOption = (qIndex, oIndex, value) => {
+    const updatedQuestions = [...testForm.questions];
+    updatedQuestions[qIndex].options[oIndex] = value;
+    setTestForm({ ...testForm, questions: updatedQuestions });
+  };
+
+  const deleteQuestion = (index) => {
+    setTestForm({
+      ...testForm,
+      questions: testForm.questions.filter((_, i) => i !== index)
+    });
+  };
+
+  // Test taking
+  const startTest = (test) => {
+    const session = {
+      id: Date.now(),
+      testId: test.id,
+      userId: currentUser.id,
+      startedAt: new Date().toISOString(),
+      answers: {},
+      status: 'in-progress'
+    };
+    setActiveSession(session);
+    setAnswers({});
+    setCurrentQuestionIndex(0);
+    setTimeRemaining(test.timeLimit * 60);
+    setView('test-taking');
+  };
+
+  const answerQuestion = (questionId, answer) => {
+    setAnswers({
+      ...answers,
+      [questionId]: answer
+    });
+  };
+
+  const submitTest = async () => {
+    if (!activeSession) return;
+
+    const test = tests.find(t => t.id === activeSession.testId);
+    let score = 0;
+    let maxScore = 0;
+
+    test.questions.forEach(q => {
+      maxScore += q.points;
+      const userAnswer = answers[q.id];
+
+      if (q.type === 'multiple-choice') {
+        if (userAnswer === q.correctAnswer) {
+          score += q.points;
+        }
+      } else if (q.type === 'multiple-select') {
+        const correct = JSON.stringify(q.correctAnswers?.sort());
+        const user = JSON.stringify(userAnswer?.sort() || []);
+        if (correct === user) {
+          score += q.points;
+        }
+      } else if (q.type === 'true-false') {
+        if (userAnswer === q.correctAnswer) {
+          score += q.points;
+        }
+      } else if (q.type === 'short-answer') {
+        if (userAnswer?.toLowerCase().trim() === q.correctAnswer?.toLowerCase().trim()) {
+          score += q.points;
+        }
+      }
+    });
+
+    const percentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+    const passed = percentage >= test.passingScore;
+
+    const completedSession = {
+      ...activeSession,
+      answers,
+      score,
+      maxScore,
+      percentage: Math.round(percentage),
+      passed,
+      completedAt: new Date().toISOString(),
+      status: 'completed'
+    };
+
+    await saveSessions([...sessions, completedSession]);
+    setActiveSession(completedSession);
+    setView('test-results');
+  };
+
+  // Statistics
+  const getTestStatistics = (testId) => {
+    const testSessions = sessions.filter(s => s.testId === testId && s.status === 'completed');
+    if (testSessions.length === 0) return null;
+
+    const scores = testSessions.map(s => s.percentage);
+    const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
+    const passed = testSessions.filter(s => s.passed).length;
+
+    return {
+      totalAttempts: testSessions.length,
+      averageScore: Math.round(avgScore),
+      passRate: Math.round((passed / testSessions.length) * 100),
+      highestScore: Math.max(...scores),
+      lowestScore: Math.min(...scores)
+    };
+  };
+
+  // Format time
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Загрузка...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Login View
+  if (view === 'login') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full">
+          <div className="text-center mb-8">
+            <BookOpen className="w-16 h-16 text-indigo-600 mx-auto mb-4" />
+            <h1 className="text-3xl font-bold text-gray-800 mb-2">Система тестирования</h1>
+            <p className="text-gray-600">Выберите роль для входа</p>
+          </div>
+
+          {error && (
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-red-800">{error}</p>
+            </div>
+          )}
+
+          <div className="space-y-4">
+            <button
+              onClick={() => handleLogin('admin')}
+              className="w-full bg-indigo-600 text-white py-4 rounded-lg hover:bg-indigo-700 transition flex items-center justify-center gap-2 font-semibold"
+            >
+              <Users className="w-5 h-5" />
+              Войти как Администратор
+            </button>
+            <button
+              onClick={() => handleLogin('student')}
+              className="w-full bg-green-600 text-white py-4 rounded-lg hover:bg-green-700 transition flex items-center justify-center gap-2 font-semibold"
+            >
+              <BookOpen className="w-5 h-5" />
+              Войти как Студент
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Admin Dashboard
+  if (view === 'admin-dashboard') {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <nav className="bg-white shadow-sm border-b">
+          <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <BookOpen className="w-8 h-8 text-indigo-600" />
+              <div>
+                <h1 className="text-xl font-bold text-gray-800">Панель администратора</h1>
+                <p className="text-sm text-gray-600">{currentUser.name}</p>
+              </div>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800"
+            >
+              <LogOut className="w-5 h-5" />
+              Выход
+            </button>
+          </div>
+        </nav>
+
+        <div className="max-w-7xl mx-auto px-4 py-8">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold text-gray-800">Мои тесты</h2>
+            <button
+              onClick={createTest}
+              className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition flex items-center gap-2 font-semibold"
+            >
+              <Plus className="w-5 h-5" />
+              Создать тест
+            </button>
+          </div>
+
+          {tests.length === 0 ? (
+            <div className="bg-white rounded-lg shadow p-12 text-center">
+              <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-500 mb-4">У вас пока нет тестов</p>
+              <button
+                onClick={createTest}
+                className="text-indigo-600 hover:text-indigo-700 font-semibold"
+              >
+                Создать первый тест
+              </button>
+            </div>
+          ) : (
+            <div className="grid gap-6">
+              {tests.map(test => {
+                const stats = getTestStatistics(test.id);
+                return (
+                  <div key={test.id} className="bg-white rounded-lg shadow-sm border p-6">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="flex-1">
+                        <h3 className="text-xl font-bold text-gray-800 mb-2">{test.title}</h3>
+                        <p className="text-gray-600 mb-3">{test.description}</p>
+                        <div className="flex flex-wrap gap-4 text-sm text-gray-500">
+                          <span className="flex items-center gap-1">
+                            <BookOpen className="w-4 h-4" />
+                            {test.questions.length} вопросов
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-4 h-4" />
+                            {test.timeLimit} мин
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <CheckCircle className="w-4 h-4" />
+                            Проходной балл: {test.passingScore}%
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => editTest(test)}
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                          title="Редактировать"
+                        >
+                          <Edit className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={() => deleteTest(test.id)}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
+                          title="Удалить"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {stats && (
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t">
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-indigo-600">{stats.totalAttempts}</div>
+                          <div className="text-xs text-gray-500">Попыток</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-green-600">{stats.averageScore}%</div>
+                          <div className="text-xs text-gray-500">Средний балл</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-blue-600">{stats.passRate}%</div>
+                          <div className="text-xs text-gray-500">Прошли тест</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-purple-600">{stats.highestScore}%</div>
+                          <div className="text-xs text-gray-500">Лучший результат</div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Test Editor
+  if (view === 'test-editor') {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <nav className="bg-white shadow-sm border-b sticky top-0 z-10">
+          <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+            <button
+              onClick={() => setView('admin-dashboard')}
+              className="flex items-center gap-2 text-gray-600 hover:text-gray-800"
+            >
+              <ArrowLeft className="w-5 h-5" />
+              Назад
+            </button>
+            <h1 className="text-xl font-bold text-gray-800">
+              {editingTest ? 'Редактирование теста' : 'Создание теста'}
+            </h1>
+            <button
+              onClick={saveTest}
+              className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition flex items-center gap-2"
+            >
+              <Save className="w-5 h-5" />
+              Сохранить
+            </button>
+          </div>
+        </nav>
+
+        <div className="max-w-4xl mx-auto px-4 py-8">
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-red-800">{error}</p>
+            </div>
+          )}
+
+          <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
+            <h2 className="text-lg font-bold text-gray-800 mb-4">Основная информация</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Название теста *
+                </label>
+                <input
+                  type="text"
+                  value={testForm.title}
+                  onChange={(e) => setTestForm({ ...testForm, title: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  placeholder="Введите название теста"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Описание
+                </label>
+                <textarea
+                  value={testForm.description}
+                  onChange={(e) => setTestForm({ ...testForm, description: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  rows={3}
+                  placeholder="Краткое описание теста"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Время (минуты)
+                  </label>
+                  <input
+                    type="number"
+                    value={testForm.timeLimit}
+                    onChange={(e) => setTestForm({ ...testForm, timeLimit: parseInt(e.target.value) || 0 })}
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    min="1"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Проходной балл (%)
+                  </label>
+                  <input
+                    type="number"
+                    value={testForm.passingScore}
+                    onChange={(e) => setTestForm({ ...testForm, passingScore: parseInt(e.target.value) || 0 })}
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    min="0"
+                    max="100"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-bold text-gray-800">
+                Вопросы ({testForm.questions.length})
+              </h2>
+              <button
+                onClick={addQuestion}
+                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition flex items-center gap-2"
+              >
+                <Plus className="w-5 h-5" />
+                Добавить вопрос
+              </button>
+            </div>
+
+            {testForm.questions.length === 0 ? (
+              <div className="text-center py-12 text-gray-500">
+                <BookOpen className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                <p>Добавьте первый вопрос к тесту</p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {testForm.questions.map((question, qIndex) => (
+                  <div key={question.id} className="border rounded-lg p-4">
+                    <div className="flex justify-between items-start mb-4">
+                      <span className="font-semibold text-gray-700">Вопрос {qIndex + 1}</span>
+                      <button
+                        onClick={() => deleteQuestion(qIndex)}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Тип вопроса
+                        </label>
+                        <select
+                          value={question.type}
+                          onChange={(e) => updateQuestion(qIndex, 'type', e.target.value)}
+                          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                        >
+                          <option value="multiple-choice">Один правильный ответ</option>
+                          <option value="multiple-select">Несколько правильных ответов</option>
+                          <option value="true-false">Правда/Ложь</option>
+                          <option value="short-answer">Короткий ответ</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Текст вопроса
+                        </label>
+                        <textarea
+                          value={question.text}
+                          onChange={(e) => updateQuestion(qIndex, 'text', e.target.value)}
+                          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                          rows={2}
+                          placeholder="Введите текст вопроса"
+                        />
+                      </div>
+
+                      {question.type === 'multiple-choice' && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Варианты ответов
+                          </label>
+                          {question.options.map((option, oIndex) => (
+                            <div key={oIndex} className="flex gap-2 mb-2">
+                              <input
+                                type="radio"
+                                name={`correct-${question.id}`}
+                                checked={question.correctAnswer === oIndex}
+                                onChange={() => updateQuestion(qIndex, 'correctAnswer', oIndex)}
+                                className="mt-3"
+                              />
+                              <input
+                                type="text"
+                                value={option}
+                                onChange={(e) => updateQuestionOption(qIndex, oIndex, e.target.value)}
+                                className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                placeholder={`Вариант ${oIndex + 1}`}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {question.type === 'multiple-select' && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Варианты ответов (можно выбрать несколько)
+                          </label>
+                          {question.options.map((option, oIndex) => (
+                            <div key={oIndex} className="flex gap-2 mb-2">
+                              <input
+                                type="checkbox"
+                                checked={question.correctAnswers?.includes(oIndex)}
+                                onChange={(e) => {
+                                  const current = question.correctAnswers || [];
+                                  const updated = e.target.checked
+                                    ? [...current, oIndex]
+                                    : current.filter(i => i !== oIndex);
+                                  updateQuestion(qIndex, 'correctAnswers', updated);
+                                }}
+                                className="mt-3"
+                              />
+                              <input
+                                type="text"
+                                value={option}
+                                onChange={(e) => updateQuestionOption(qIndex, oIndex, e.target.value)}
+                                className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                placeholder={`Вариант ${oIndex + 1}`}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {question.type === 'true-false' && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Правильный ответ
+                          </label>
+                          <div className="flex gap-4">
+                            <label className="flex items-center">
+                              <input
+                                type="radio"
+                                checked={question.correctAnswer === true}
+                                onChange={() => updateQuestion(qIndex, 'correctAnswer', true)}
+                                className="mr-2"
+                              />
+                              Правда
+                            </label>
+                            <label className="flex items-center">
+                              <input
+                                type="radio"
+                                checked={question.correctAnswer === false}
+                                onChange={() => updateQuestion(qIndex, 'correctAnswer', false)}
+                                className="mr-2"
+                              />
+                              Ложь
+                            </label>
+                          </div>
+                        </div>
+                      )}
+
+                      {question.type === 'short-answer' && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Правильный ответ
+                          </label>
+                          <input
+                            type="text"
+                            value={question.correctAnswer || ''}
+                            onChange={(e) => updateQuestion(qIndex, 'correctAnswer', e.target.value)}
+                            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                            placeholder="Введите правильный ответ"
+                          />
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Баллы за вопрос
+                        </label>
+                        <input
+                          type="number"
+                          value={question.points}
+                          onChange={(e) => updateQuestion(qIndex, 'points', parseInt(e.target.value) || 1)}
+                          className

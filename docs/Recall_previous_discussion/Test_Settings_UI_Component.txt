@@ -1,0 +1,588 @@
+import { useState } from 'react';
+import { 
+  Settings, 
+  Clock, 
+  Lock, 
+  Eye, 
+  Shield, 
+  Calendar,
+  RefreshCw,
+  AlertCircle,
+  CheckCircle,
+  Save,
+  Sparkles
+} from 'lucide-react';
+
+// ==================== TEST SETTINGS FORM ====================
+const TestSettingsForm = ({ testId, initialSettings = {} }) => {
+  const [tab, setTab] = useState('access');
+  const [settings, setSettings] = useState({
+    // Access Control
+    available_from: initialSettings.available_from || null,
+    available_until: initialSettings.available_until || null,
+    access_code: initialSettings.access_code || '',
+    
+    // Attempts
+    max_attempts: initialSettings.max_attempts || null,
+    attempt_cooldown: initialSettings.attempt_cooldown || 0,
+    
+    // Timing
+    time_limit: initialSettings.time_limit || null,
+    show_timer: initialSettings.show_timer !== false,
+    auto_submit_on_timeout: initialSettings.auto_submit_on_timeout !== false,
+    
+    // Question Behavior
+    shuffle_questions: initialSettings.shuffle_questions || false,
+    shuffle_options: initialSettings.shuffle_options || false,
+    one_question_at_time: initialSettings.one_question_at_time || false,
+    allow_navigation_back: initialSettings.allow_navigation_back !== false,
+    
+    // Feedback
+    show_correct_answers: initialSettings.show_correct_answers || false,
+    show_score_immediately: initialSettings.show_score_immediately !== false,
+    show_feedback_after: initialSettings.show_feedback_after || 'submission',
+    
+    // Security
+    require_webcam: initialSettings.require_webcam || false,
+    allow_pause: initialSettings.allow_pause || false,
+    
+    // Submission
+    late_submission_allowed: initialSettings.late_submission_allowed || false,
+    late_submission_penalty: initialSettings.late_submission_penalty || 0,
+  });
+
+  const [saving, setSaving] = useState(false);
+  const [success, setSuccess] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    
+    try {
+      const response = await fetch(`/api/tests/${testId}/settings`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify(settings)
+      });
+      
+      if (response.ok) {
+        setSuccess(true);
+        setTimeout(() => setSuccess(false), 3000);
+      }
+    } catch (error) {
+      console.error('Failed to save settings:', error);
+      alert('Не удалось сохранить настройки');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const applyPreset = (presetName) => {
+    const presets = {
+      quiz: {
+        time_limit: 10,
+        max_attempts: null,
+        shuffle_questions: false,
+        show_correct_answers: true,
+        show_score_immediately: true,
+      },
+      exam: {
+        time_limit: 90,
+        max_attempts: 1,
+        shuffle_questions: true,
+        shuffle_options: true,
+        one_question_at_time: true,
+        allow_navigation_back: false,
+        show_correct_answers: false,
+        show_score_immediately: false,
+        require_webcam: true,
+      },
+      practice: {
+        time_limit: null,
+        max_attempts: null,
+        shuffle_questions: true,
+        show_correct_answers: true,
+        show_score_immediately: true,
+        allow_pause: true,
+      },
+      homework: {
+        time_limit: 60,
+        max_attempts: 3,
+        attempt_cooldown: 60,
+        show_correct_answers: false,
+        show_score_immediately: true,
+        late_submission_allowed: true,
+        late_submission_penalty: 10,
+      }
+    };
+
+    if (presets[presetName]) {
+      setSettings({ ...settings, ...presets[presetName] });
+    }
+  };
+
+  const tabs = [
+    { id: 'access', label: 'Доступ', icon: Lock },
+    { id: 'timing', label: 'Время', icon: Clock },
+    { id: 'behavior', label: 'Вопросы', icon: Settings },
+    { id: 'feedback', label: 'Обратная связь', icon: Eye },
+    { id: 'security', label: 'Безопасность', icon: Shield },
+  ];
+
+  return (
+    <div className="bg-white rounded-lg shadow-lg">
+      {/* Header */}
+      <div className="p-6 border-b">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Settings className="w-6 h-6 text-blue-600" />
+            <h2 className="text-2xl font-bold">Настройки теста</h2>
+          </div>
+          
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className={`flex items-center gap-2 px-6 py-2 rounded-lg font-medium transition ${
+              success 
+                ? 'bg-green-600 text-white'
+                : 'bg-blue-600 text-white hover:bg-blue-700'
+            } disabled:opacity-50`}
+          >
+            {saving ? (
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                Сохранение...
+              </>
+            ) : success ? (
+              <>
+                <CheckCircle className="w-4 h-4" />
+                Сохранено!
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                Сохранить
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Presets */}
+      <div className="p-6 bg-gradient-to-r from-purple-50 to-blue-50 border-b">
+        <div className="flex items-center gap-2 mb-3">
+          <Sparkles className="w-5 h-5 text-purple-600" />
+          <h3 className="font-semibold text-gray-900">Быстрые пресеты:</h3>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[
+            { id: 'quiz', label: '📝 Опрос', desc: 'Быстро и просто' },
+            { id: 'exam', label: '🎓 Экзамен', desc: 'Строгий контроль' },
+            { id: 'practice', label: '💪 Тренировка', desc: 'Без ограничений' },
+            { id: 'homework', label: '📚 ДЗ', desc: 'С дедлайном' }
+          ].map((preset) => (
+            <button
+              key={preset.id}
+              onClick={() => applyPreset(preset.id)}
+              className="p-3 bg-white rounded-lg border-2 border-gray-200 hover:border-purple-400 transition text-left"
+            >
+              <div className="font-semibold text-sm">{preset.label}</div>
+              <div className="text-xs text-gray-600">{preset.desc}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="border-b">
+        <div className="flex overflow-x-auto">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`flex items-center gap-2 px-6 py-4 font-medium border-b-2 transition whitespace-nowrap ${
+                tab === t.id
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <t.icon className="w-4 h-4" />
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="p-6">
+        {/* Access Control Tab */}
+        {tab === 'access' && (
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-lg font-semibold mb-4">Контроль доступа</h3>
+              
+              <div className="space-y-4">
+                {/* Date Range */}
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <Calendar className="w-4 h-4 inline mr-1" />
+                      Доступен с
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={settings.available_from || ''}
+                      onChange={(e) => setSettings({...settings, available_from: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <Calendar className="w-4 h-4 inline mr-1" />
+                      Доступен до
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={settings.available_until || ''}
+                      onChange={(e) => setSettings({...settings, available_until: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Access Code */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <Lock className="w-4 h-4 inline mr-1" />
+                    Код доступа (опционально)
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.access_code}
+                    onChange={(e) => setSettings({...settings, access_code: e.target.value})}
+                    placeholder="Оставьте пустым для открытого доступа"
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                  <p className="text-xs text-gray-600 mt-1">
+                    Студентам потребуется ввести этот код для начала теста
+                  </p>
+                </div>
+
+                {/* Attempts */}
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Максимум попыток
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={settings.max_attempts || ''}
+                      onChange={(e) => setSettings({...settings, max_attempts: e.target.value ? parseInt(e.target.value) : null})}
+                      placeholder="Без ограничений"
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Пауза между попытками (минуты)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={settings.attempt_cooldown}
+                      onChange={(e) => setSettings({...settings, attempt_cooldown: parseInt(e.target.value) || 0})}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Timing Tab */}
+        {tab === 'timing' && (
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-lg font-semibold mb-4">Ограничения по времени</h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Лимит времени (минуты)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={settings.time_limit || ''}
+                    onChange={(e) => setSettings({...settings, time_limit: e.target.value ? parseInt(e.target.value) : null})}
+                    placeholder="Без ограничения"
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="show_timer"
+                    checked={settings.show_timer}
+                    onChange={(e) => setSettings({...settings, show_timer: e.target.checked})}
+                    className="w-4 h-4 text-blue-600 rounded"
+                  />
+                  <label htmlFor="show_timer" className="text-sm text-gray-700">
+                    Показывать таймер студентам
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="auto_submit"
+                    checked={settings.auto_submit_on_timeout}
+                    onChange={(e) => setSettings({...settings, auto_submit_on_timeout: e.target.checked})}
+                    className="w-4 h-4 text-blue-600 rounded"
+                  />
+                  <label htmlFor="auto_submit" className="text-sm text-gray-700">
+                    Автоматически отправить при истечении времени
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="allow_pause"
+                    checked={settings.allow_pause}
+                    onChange={(e) => setSettings({...settings, allow_pause: e.target.checked})}
+                    className="w-4 h-4 text-blue-600 rounded"
+                  />
+                  <label htmlFor="allow_pause" className="text-sm text-gray-700">
+                    Разрешить паузу теста
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Question Behavior Tab */}
+        {tab === 'behavior' && (
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-lg font-semibold mb-4">Поведение вопросов</h3>
+              
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="shuffle_questions"
+                    checked={settings.shuffle_questions}
+                    onChange={(e) => setSettings({...settings, shuffle_questions: e.target.checked})}
+                    className="w-4 h-4 text-blue-600 rounded"
+                  />
+                  <label htmlFor="shuffle_questions" className="text-sm text-gray-700">
+                    Перемешивать порядок вопросов
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="shuffle_options"
+                    checked={settings.shuffle_options}
+                    onChange={(e) => setSettings({...settings, shuffle_options: e.target.checked})}
+                    className="w-4 h-4 text-blue-600 rounded"
+                  />
+                  <label htmlFor="shuffle_options" className="text-sm text-gray-700">
+                    Перемешивать порядок вариантов ответа
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="one_at_time"
+                    checked={settings.one_question_at_time}
+                    onChange={(e) => setSettings({...settings, one_question_at_time: e.target.checked})}
+                    className="w-4 h-4 text-blue-600 rounded"
+                  />
+                  <label htmlFor="one_at_time" className="text-sm text-gray-700">
+                    Показывать по одному вопросу за раз
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="allow_back"
+                    checked={settings.allow_navigation_back}
+                    onChange={(e) => setSettings({...settings, allow_navigation_back: e.target.checked})}
+                    className="w-4 h-4 text-blue-600 rounded"
+                  />
+                  <label htmlFor="allow_back" className="text-sm text-gray-700">
+                    Разрешить возврат к предыдущим вопросам
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Feedback Tab */}
+        {tab === 'feedback' && (
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-lg font-semibold mb-4">Обратная связь</h3>
+              
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="show_score"
+                    checked={settings.show_score_immediately}
+                    onChange={(e) => setSettings({...settings, show_score_immediately: e.target.checked})}
+                    className="w-4 h-4 text-blue-600 rounded"
+                  />
+                  <label htmlFor="show_score" className="text-sm text-gray-700">
+                    Показать балл сразу после завершения
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="show_answers"
+                    checked={settings.show_correct_answers}
+                    onChange={(e) => setSettings({...settings, show_correct_answers: e.target.checked})}
+                    className="w-4 h-4 text-blue-600 rounded"
+                  />
+                  <label htmlFor="show_answers" className="text-sm text-gray-700">
+                    Показать правильные ответы
+                  </label>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Когда показывать детальную обратную связь
+                  </label>
+                  <select
+                    value={settings.show_feedback_after}
+                    onChange={(e) => setSettings({...settings, show_feedback_after: e.target.value})}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="submission">Сразу после отправки</option>
+                    <option value="deadline">После дедлайна</option>
+                    <option value="manual">Вручную (преподавателем)</option>
+                    <option value="never">Никогда</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Security Tab */}
+        {tab === 'security' && (
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-lg font-semibold mb-4">Безопасность и прокторинг</h3>
+              
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="require_webcam"
+                    checked={settings.require_webcam}
+                    onChange={(e) => setSettings({...settings, require_webcam: e.target.checked})}
+                    className="w-4 h-4 text-blue-600 rounded"
+                  />
+                  <label htmlFor="require_webcam" className="text-sm text-gray-700">
+                    Требовать веб-камеру (прокторинг)
+                  </label>
+                </div>
+
+                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <div className="flex gap-2">
+                    <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                    <div className="text-sm text-yellow-900">
+                      <p className="font-semibold mb-1">Поздняя сдача</p>
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id="late_allowed"
+                            checked={settings.late_submission_allowed}
+                            onChange={(e) => setSettings({...settings, late_submission_allowed: e.target.checked})}
+                            className="w-4 h-4 text-yellow-600 rounded"
+                          />
+                          <label htmlFor="late_allowed" className="text-sm">
+                            Разрешить сдачу после дедлайна
+                          </label>
+                        </div>
+                        
+                        {settings.late_submission_allowed && (
+                          <div>
+                            <label className="block text-sm mb-1">
+                              Штраф за опоздание (%)
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={settings.late_submission_penalty}
+                              onChange={(e) => setSettings({...settings, late_submission_penalty: parseFloat(e.target.value) || 0})}
+                              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-500"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ==================== DEMO APP ====================
+const TestSettingsDemo = () => {
+  return (
+    <div className="min-h-screen bg-gray-50 p-8">
+      <div className="max-w-6xl mx-auto">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            Расширенные настройки теста
+          </h1>
+          <p className="text-gray-600">
+            Настройте доступ, время, поведение и безопасность теста
+          </p>
+        </div>
+
+        <TestSettingsForm testId={1} />
+
+        {/* Info */}
+        <div className="mt-6 p-6 bg-blue-50 border border-blue-200 rounded-lg">
+          <h3 className="font-semibold text-blue-900 mb-2">
+            💡 Подсказки
+          </h3>
+          <ul className="text-sm text-blue-800 space-y-1">
+            <li>• Используйте пресеты для быстрой настройки типичных сценариев</li>
+            <li>• Код доступа помогает контролировать, кто может начать тест</li>
+            <li>• Перемешивание вопросов снижает вероятность списывания</li>
+            <li>• Ограничение попыток мотивирует студентов готовиться серьёзнее</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default TestSettingsDemo;

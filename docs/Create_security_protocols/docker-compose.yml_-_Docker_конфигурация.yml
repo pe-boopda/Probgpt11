@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: testing_db
+    environment:
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: testpass
+      POSTGRES_DB: testingdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - testing_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U testuser -d testingdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: testing_backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - uploads_data:/app/uploads
+    environment:
+      - DATABASE_URL=postgresql://testuser:testpass@db:5432/testingdb
+      - SECRET_KEY=your-super-secret-key-change-in-production
+      - DEBUG=True
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - testing_network
+
+  # React Frontend (для production)
+  # frontend:
+  #   build:
+  #     context: ./frontend
+  #     dockerfile: Dockerfile
+  #   container_name: testing_frontend
+  #   ports:
+  #     - "3000:80"
+  #   depends_on:
+  #     - backend
+  #   networks:
+  #     - testing_network
+
+volumes:
+  postgres_data:
+  uploads_data:
+
+networks:
+  testing_network:
+    driver: bridge

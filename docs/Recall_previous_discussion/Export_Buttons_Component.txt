@@ -1,0 +1,498 @@
+import { useState } from 'react';
+import { Download, FileSpreadsheet, FileText, Award, Loader2, CheckCircle } from 'lucide-react';
+
+const ExportButtons = ({ testId, sessionId = null, mode = 'test' }) => {
+  const [exporting, setExporting] = useState(null);
+  const [success, setSuccess] = useState(null);
+
+  const handleExport = async (format, includeDetails = false) => {
+    setExporting(format);
+    setSuccess(null);
+
+    try {
+      let url;
+      
+      if (mode === 'test') {
+        // Export entire test results
+        url = `/api/export/tests/${testId}/export/${format}`;
+        if (includeDetails && format !== 'csv') {
+          url += '?include_details=true';
+        }
+      } else if (mode === 'certificate') {
+        // Export individual certificate
+        url = `/api/export/sessions/${sessionId}/certificate/pdf`;
+      }
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Export failed');
+      }
+
+      // Get filename from headers or use default
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let filename = `export_${Date.now()}.${format}`;
+      
+      if (contentDisposition) {
+        const matches = /filename="?([^"]+)"?/.exec(contentDisposition);
+        if (matches && matches[1]) {
+          filename = matches[1];
+        }
+      }
+
+      // Download file
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+
+      // Show success
+      setSuccess(format);
+      setTimeout(() => setSuccess(null), 3000);
+      
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('Не удалось экспортировать данные');
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  if (mode === 'certificate') {
+    return (
+      <button
+        onClick={() => handleExport('pdf')}
+        disabled={exporting}
+        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
+      >
+        {exporting ? (
+          <>
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Создание сертификата...
+          </>
+        ) : success ? (
+          <>
+            <CheckCircle className="w-4 h-4" />
+            Скачан!
+          </>
+        ) : (
+          <>
+            <Award className="w-4 h-4" />
+            Скачать сертификат
+          </>
+        )}
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap gap-3">
+      {/* Excel Export */}
+      <div className="relative group">
+        <button
+          onClick={() => handleExport('excel', false)}
+          disabled={exporting}
+          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition"
+        >
+          {exporting === 'excel' ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Экспорт...
+            </>
+          ) : success === 'excel' ? (
+            <>
+              <CheckCircle className="w-4 h-4" />
+              Скачан!
+            </>
+          ) : (
+            <>
+              <FileSpreadsheet className="w-4 h-4" />
+              Excel
+            </>
+          )}
+        </button>
+
+        {/* Tooltip */}
+        <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block z-10">
+          <div className="bg-gray-900 text-white text-xs rounded px-3 py-2 whitespace-nowrap">
+            Экспорт в Excel (.xlsx)
+            <div className="text-gray-400 mt-1">
+              Сводка + детальные результаты
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Excel with Details */}
+      <div className="relative group">
+        <button
+          onClick={() => handleExport('excel', true)}
+          disabled={exporting}
+          className="flex items-center gap-2 px-4 py-2 bg-green-700 text-white rounded-lg hover:bg-green-800 disabled:opacity-50 transition"
+        >
+          {exporting === 'excel-details' ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Экспорт...
+            </>
+          ) : (
+            <>
+              <FileSpreadsheet className="w-4 h-4" />
+              Excel+
+            </>
+          )}
+        </button>
+
+        {/* Tooltip */}
+        <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block z-10">
+          <div className="bg-gray-900 text-white text-xs rounded px-3 py-2 whitespace-nowrap">
+            Расширенный Excel
+            <div className="text-gray-400 mt-1">
+              + анализ по вопросам
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* PDF Export */}
+      <div className="relative group">
+        <button
+          onClick={() => handleExport('pdf', false)}
+          disabled={exporting}
+          className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition"
+        >
+          {exporting === 'pdf' ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Экспорт...
+            </>
+          ) : success === 'pdf' ? (
+            <>
+              <CheckCircle className="w-4 h-4" />
+              Скачан!
+            </>
+          ) : (
+            <>
+              <FileText className="w-4 h-4" />
+              PDF
+            </>
+          )}
+        </button>
+
+        {/* Tooltip */}
+        <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block z-10">
+          <div className="bg-gray-900 text-white text-xs rounded px-3 py-2 whitespace-nowrap">
+            Экспорт в PDF
+            <div className="text-gray-400 mt-1">
+              Отчёт для печати
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* CSV Export */}
+      <div className="relative group">
+        <button
+          onClick={() => handleExport('csv')}
+          disabled={exporting}
+          className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 transition"
+        >
+          {exporting === 'csv' ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Экспорт...
+            </>
+          ) : success === 'csv' ? (
+            <>
+              <CheckCircle className="w-4 h-4" />
+              Скачан!
+            </>
+          ) : (
+            <>
+              <Download className="w-4 h-4" />
+              CSV
+            </>
+          )}
+        </button>
+
+        {/* Tooltip */}
+        <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block z-10">
+          <div className="bg-gray-900 text-white text-xs rounded px-3 py-2 whitespace-nowrap">
+            Экспорт в CSV
+            <div className="text-gray-400 mt-1">
+              Для анализа в других программах
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==================== DEMO APP ====================
+
+const ExportDemo = () => {
+  const [view, setView] = useState('teacher');
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-8">
+      <div className="max-w-4xl mx-auto">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            📥 Экспорт результатов тестирования
+          </h1>
+          <p className="text-gray-600">
+            Демонстрация функционала экспорта в Excel, PDF и CSV
+          </p>
+        </div>
+
+        {/* View Switcher */}
+        <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
+          <div className="flex gap-4">
+            <button
+              onClick={() => setView('teacher')}
+              className={`flex-1 px-4 py-3 rounded-lg font-medium transition ${
+                view === 'teacher'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              👨‍🏫 Преподаватель
+            </button>
+            <button
+              onClick={() => setView('student')}
+              className={`flex-1 px-4 py-3 rounded-lg font-medium transition ${
+                view === 'student'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              👨‍🎓 Студент
+            </button>
+          </div>
+        </div>
+
+        {/* Teacher View */}
+        {view === 'teacher' && (
+          <div className="space-y-6">
+            {/* Test Results Export */}
+            <div className="bg-white rounded-lg shadow-lg p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">
+                    Математика 101 - Результаты
+                  </h2>
+                  <p className="text-sm text-gray-600 mt-1">
+                    25 студентов • 20 завершили тест • Средний балл: 78%
+                  </p>
+                </div>
+              </div>
+
+              <div className="mb-6">
+                <h3 className="text-sm font-medium text-gray-700 mb-3">
+                  Экспорт результатов теста:
+                </h3>
+                <ExportButtons testId={1} mode="test" />
+              </div>
+
+              <div className="border-t pt-4">
+                <h3 className="text-sm font-medium text-gray-700 mb-3">
+                  Что включено в экспорт:
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="p-4 bg-green-50 rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <FileSpreadsheet className="w-5 h-5 text-green-600" />
+                      <span className="font-semibold text-green-900">Excel</span>
+                    </div>
+                    <ul className="text-xs text-green-800 space-y-1">
+                      <li>• Сводная статистика</li>
+                      <li>• Детальные результаты</li>
+                      <li>• Распределение баллов</li>
+                      <li>• Статистика по времени</li>
+                    </ul>
+                  </div>
+
+                  <div className="p-4 bg-red-50 rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <FileText className="w-5 h-5 text-red-600" />
+                      <span className="font-semibold text-red-900">PDF</span>
+                    </div>
+                    <ul className="text-xs text-red-800 space-y-1">
+                      <li>• Красиво оформленный отчёт</li>
+                      <li>• Готов для печати</li>
+                      <li>• Таблицы с результатами</li>
+                      <li>• Общая статистика</li>
+                    </ul>
+                  </div>
+
+                  <div className="p-4 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Download className="w-5 h-5 text-gray-600" />
+                      <span className="font-semibold text-gray-900">CSV</span>
+                    </div>
+                    <ul className="text-xs text-gray-700 space-y-1">
+                      <li>• Простой формат</li>
+                      <li>• Импорт в другие системы</li>
+                      <li>• Анализ в Excel/Sheets</li>
+                      <li>• Совместимость</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Excel Preview */}
+            <div className="bg-white rounded-lg shadow-lg p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                📊 Предпросмотр Excel файла:
+              </h3>
+              
+              <div className="border rounded-lg overflow-hidden">
+                <div className="bg-blue-600 text-white px-4 py-2 flex gap-4 text-sm">
+                  <span className="font-semibold">Лист 1: Сводка</span>
+                  <span>Лист 2: Детальные результаты</span>
+                  <span>Лист 3: Статистика</span>
+                </div>
+                
+                <div className="bg-gray-50 p-4 overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="bg-blue-100">
+                        <th className="px-4 py-2 text-left font-semibold">ФИО</th>
+                        <th className="px-4 py-2 text-left font-semibold">Email</th>
+                        <th className="px-4 py-2 text-left font-semibold">Дата</th>
+                        <th className="px-4 py-2 text-left font-semibold">Балл</th>
+                        <th className="px-4 py-2 text-left font-semibold">Статус</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="bg-white border-b">
+                        <td className="px-4 py-2">Иван Петров</td>
+                        <td className="px-4 py-2">ivan@example.com</td>
+                        <td className="px-4 py-2">26.12.2024</td>
+                        <td className="px-4 py-2">85%</td>
+                        <td className="px-4 py-2 text-green-600">✓ Сдал</td>
+                      </tr>
+                      <tr className="bg-gray-50 border-b">
+                        <td className="px-4 py-2">Мария Сидорова</td>
+                        <td className="px-4 py-2">maria@example.com</td>
+                        <td className="px-4 py-2">26.12.2024</td>
+                        <td className="px-4 py-2">92%</td>
+                        <td className="px-4 py-2 text-green-600">✓ Сдал</td>
+                      </tr>
+                      <tr className="bg-white border-b">
+                        <td className="px-4 py-2">Алексей Иванов</td>
+                        <td className="px-4 py-2">alex@example.com</td>
+                        <td className="px-4 py-2">26.12.2024</td>
+                        <td className="px-4 py-2">58%</td>
+                        <td className="px-4 py-2 text-red-600">✗ Не сдал</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Student View */}
+        {view === 'student' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-lg shadow-lg p-6">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+                  <CheckCircle className="w-8 h-8 text-green-600" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">
+                    Тест успешно сдан!
+                  </h2>
+                  <p className="text-sm text-gray-600">
+                    Математика 101 • Балл: 85% • Дата: 26.12.2024
+                  </p>
+                </div>
+              </div>
+
+              <div className="mb-6">
+                <h3 className="text-sm font-medium text-gray-700 mb-3">
+                  Скачать сертификат:
+                </h3>
+                <ExportButtons sessionId={123} mode="certificate" />
+              </div>
+
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-900">
+                  ℹ️ Сертификат доступен только для успешно сданных тестов. 
+                  В сертификате указаны ваше имя, название теста, результат и дата прохождения.
+                </p>
+              </div>
+            </div>
+
+            {/* Certificate Preview */}
+            <div className="bg-white rounded-lg shadow-lg p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                🏆 Предпросмотр сертификата:
+              </h3>
+              
+              <div className="border-4 border-blue-600 rounded-lg p-8 text-center bg-gradient-to-br from-blue-50 to-white">
+                <div className="mb-6">
+                  <h1 className="text-3xl font-bold text-blue-900 mb-2">
+                    СЕРТИФИКАТ
+                  </h1>
+                  <p className="text-lg text-gray-700">о прохождении теста</p>
+                </div>
+                
+                <div className="mb-6">
+                  <p className="text-xl font-bold text-gray-900 mb-2">Иван Петров</p>
+                  <p className="text-gray-700">успешно прошёл(а) тест</p>
+                  <p className="text-xl font-bold text-gray-900 mt-2">Математика 101</p>
+                </div>
+                
+                <div className="inline-block border-2 border-blue-600 rounded-lg p-4">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="font-semibold text-gray-700">Результат:</p>
+                      <p className="text-2xl font-bold text-blue-600">85%</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-700">Дата:</p>
+                      <p className="text-lg font-semibold text-gray-900">26.12.2024</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="mt-6">
+                  <p className="text-green-600 font-semibold text-lg">✓ Тест сдан</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Info */}
+        <div className="mt-6 p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <h3 className="font-semibold text-yellow-900 mb-2">
+            ⚠️ Примечание для демонстрации
+          </h3>
+          <p className="text-sm text-yellow-800">
+            Это демонстрационная версия. В реальной системе кнопки экспорта будут скачивать 
+            реальные файлы Excel, PDF и CSV с данными из базы данных.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ExportDemo;
